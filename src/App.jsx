@@ -16,7 +16,6 @@ async function sbGetPlayers() {
     return obj;
   } catch { return {}; }
 }
-
 async function sbSavePlayer(code, name, pin, predictions) {
   try {
     await fetch(`${SUPA_URL}/rest/v1/players`, {
@@ -26,15 +25,13 @@ async function sbSavePlayer(code, name, pin, predictions) {
     });
   } catch {}
 }
-
 async function sbGetResults() {
   try {
     const r = await fetch(`${SUPA_URL}/rest/v1/results?id=eq.main`, { headers: H });
     const rows = await r.json();
-    return rows?.[0]?.data ?? { r16:{}, qf:{}, sf:{}, f:{}, champion:null };
-  } catch { return { r16:{}, qf:{}, sf:{}, f:{}, champion:null }; }
+    return rows?.[0]?.data ?? { r16:{}, qf:{}, sf:{}, third:{}, f:{}, champion:null };
+  } catch { return { r16:{}, qf:{}, sf:{}, third:{}, f:{}, champion:null }; }
 }
-
 async function sbSetResults(data) {
   try {
     await fetch(`${SUPA_URL}/rest/v1/results`, {
@@ -44,7 +41,6 @@ async function sbSetResults(data) {
     });
   } catch {}
 }
-
 async function sbGetBracket() {
   try {
     const r = await fetch(`${SUPA_URL}/rest/v1/bracket?id=eq.main`, { headers: H });
@@ -52,7 +48,6 @@ async function sbGetBracket() {
     return rows?.[0]?.data ?? null;
   } catch { return null; }
 }
-
 async function sbSetBracket(data) {
   try {
     await fetch(`${SUPA_URL}/rest/v1/bracket`, {
@@ -62,63 +57,104 @@ async function sbSetBracket(data) {
     });
   } catch {}
 }
+async function sbGetConfig() {
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/config?id=eq.main`, { headers: H });
+    const rows = await r.json();
+    return rows?.[0]?.data ?? { lockedRounds:{}, championLocked:false, thirdPlaceLocked:false };
+  } catch { return { lockedRounds:{}, championLocked:false, thirdPlaceLocked:false }; }
+}
+async function sbSetConfig(data) {
+  try {
+    await fetch(`${SUPA_URL}/rest/v1/config`, {
+      method: "POST",
+      headers: { ...H, Prefer: "resolution=merge-duplicates" },
+      body: JSON.stringify({ id:"main", data, updated_at: new Date().toISOString() }),
+    });
+  } catch {}
+}
 
-// ─── BRACKET DATA ─────────────────────────────────────────────────────────────
+// ─── FLAGS ────────────────────────────────────────────────────────────────────
+const TEAM_FLAGS = {
+  "Alemania":"de","Paraguay":"py","Francia":"fr","Suecia":"se",
+  "Sudáfrica":"za","Canadá":"ca","Países Bajos":"nl","Marruecos":"ma",
+  "Portugal":"pt","Croacia":"hr","España":"es","Austria":"at",
+  "EUA":"us","Bosnia":"ba","Bélgica":"be","Senegal":"sn",
+  "Brasil":"br","Japón":"jp","Costa de Marfil":"ci","Noruega":"no",
+  "México":"mx","Ecuador":"ec","Inglaterra":"gb-eng","Congo":"cd",
+  "Argentina":"ar","Cabo Verde":"cv","Australia":"au","Egipto":"eg",
+  "Suiza":"ch","Argelia":"dz","Colombia":"co","Ghana":"gh",
+};
+function Flag({ team, size=32 }) {
+  const code = TEAM_FLAGS[team];
+  if (!code) return <span style={{fontSize:size*0.7}}>🏳</span>;
+  return <img src={`https://flagcdn.com/w40/${code}.png`} alt={team}
+    style={{width:size,height:"auto",borderRadius:3,display:"block",objectFit:"cover"}}
+    onError={e=>{e.target.style.display="none"}}/>;
+}
+
+// ─── BRACKET DATA (ordenado por fecha/hora México) ────────────────────────────
 const INITIAL_BRACKET = {
   r16: [
-    { id:"r16_0",  team1:"Alemania",      flag1:"🇩🇪", team2:"Paraguay",    flag2:"🇵🇾" },
-    { id:"r16_1",  team1:"Francia",       flag1:"🇫🇷", team2:"Suecia",      flag2:"🇸🇪" },
-    { id:"r16_2",  team1:"Sudáfrica",     flag1:"🇿🇦", team2:"Canadá",      flag2:"🇨🇦" },
-    { id:"r16_3",  team1:"Países Bajos",  flag1:"🇳🇱", team2:"Marruecos",   flag2:"🇲🇦" },
-    { id:"r16_4",  team1:"Portugal",      flag1:"🇵🇹", team2:"Croacia",     flag2:"🇭🇷" },
-    { id:"r16_5",  team1:"España",        flag1:"🇪🇸", team2:"Austria",     flag2:"🇦🇹" },
-    { id:"r16_6",  team1:"EUA",           flag1:"🇺🇸", team2:"Bosnia",      flag2:"🇧🇦" },
-    { id:"r16_7",  team1:"Bélgica",       flag1:"🇧🇪", team2:"Senegal",     flag2:"🇸🇳" },
-    { id:"r16_8",  team1:"Brasil",        flag1:"🇧🇷", team2:"Japón",       flag2:"🇯🇵" },
-    { id:"r16_9",  team1:"Costa de Marfil",flag1:"🇨🇮",team2:"Noruega",     flag2:"🇳🇴" },
-    { id:"r16_10", team1:"México",        flag1:"🇲🇽", team2:"Ecuador",     flag2:"🇪🇨" },
-    { id:"r16_11", team1:"Inglaterra",    flag1:"🏴󠁧󠁢󠁥󠁮󠁧󠁿", team2:"Congo",       flag2:"🇨🇩" },
-    { id:"r16_12", team1:"Argentina",     flag1:"🇦🇷", team2:"Cabo Verde",  flag2:"🇨🇻" },
-    { id:"r16_13", team1:"Australia",     flag1:"🇦🇺", team2:"Egipto",      flag2:"🇪🇬" },
-    { id:"r16_14", team1:"Suiza",         flag1:"🇨🇭", team2:"Argelia",     flag2:"🇩🇿" },
-    { id:"r16_15", team1:"Colombia",      flag1:"🇨🇴", team2:"Ghana",       flag2:"🇬🇭" },
+    // Dom 28 jun
+    { id:"r16_2",  team1:"Sudáfrica",     team2:"Canadá",       date:"Dom 28 Jun", time:"13:00", venue:"Los Ángeles" },
+    // Lun 29 jun
+    { id:"r16_8",  team1:"Brasil",        team2:"Japón",        date:"Lun 29 Jun", time:"11:00", venue:"Houston" },
+    { id:"r16_0",  team1:"Alemania",      team2:"Paraguay",     date:"Lun 29 Jun", time:"14:30", venue:"Boston" },
+    { id:"r16_3",  team1:"Países Bajos",  team2:"Marruecos",    date:"Lun 29 Jun", time:"19:00", venue:"Monterrey" },
+    // Mar 30 jun
+    { id:"r16_9",  team1:"Costa de Marfil",team2:"Noruega",     date:"Mar 30 Jun", time:"11:00", venue:"Dallas" },
+    { id:"r16_1",  team1:"Francia",       team2:"Suecia",       date:"Mar 30 Jun", time:"15:00", venue:"Nueva York/NJ" },
+    { id:"r16_10", team1:"México",        team2:"Ecuador",      date:"Mar 30 Jun", time:"19:00", venue:"Ciudad de México" },
+    // Mié 1 jul
+    { id:"r16_11", team1:"Inglaterra",    team2:"Congo",        date:"Mié 1 Jul",  time:"10:00", venue:"Atlanta" },
+    { id:"r16_7",  team1:"Bélgica",       team2:"Senegal",      date:"Mié 1 Jul",  time:"14:00", venue:"Seattle" },
+    { id:"r16_6",  team1:"EUA",           team2:"Bosnia",       date:"Mié 1 Jul",  time:"18:00", venue:"San Francisco" },
+    // Jue 2 jul
+    { id:"r16_5",  team1:"España",        team2:"Austria",      date:"Jue 2 Jul",  time:"13:00", venue:"Los Ángeles" },
+    { id:"r16_4",  team1:"Portugal",      team2:"Croacia",      date:"Jue 2 Jul",  time:"17:00", venue:"Toronto" },
+    { id:"r16_14", team1:"Suiza",         team2:"Argelia",      date:"Jue 2 Jul",  time:"21:00", venue:"Vancouver" },
+    // Vie 3 jul
+    { id:"r16_13", team1:"Australia",     team2:"Egipto",       date:"Vie 3 Jul",  time:"12:00", venue:"Dallas" },
+    { id:"r16_12", team1:"Argentina",     team2:"Cabo Verde",   date:"Vie 3 Jul",  time:"16:00", venue:"Miami" },
+    { id:"r16_15", team1:"Colombia",      team2:"Ghana",        date:"Vie 3 Jul",  time:"19:30", venue:"Kansas City" },
   ],
-  qf: Array.from({length:8}, (_,i) => ({ id:`qf_${i}`, team1:null,flag1:null,team2:null,flag2:null })),
-  sf: Array.from({length:4}, (_,i) => ({ id:`sf_${i}`, team1:null,flag1:null,team2:null,flag2:null })),
-  f:  Array.from({length:2}, (_,i) => ({ id:`f_${i}`,  team1:null,flag1:null,team2:null,flag2:null })),
+  qf:    Array.from({length:8}, (_,i) => ({ id:`qf_${i}`,    team1:null, team2:null, date:"", time:"", venue:"" })),
+  sf:    Array.from({length:4}, (_,i) => ({ id:`sf_${i}`,    team1:null, team2:null, date:"", time:"", venue:"" })),
+  third: [{ id:"third_0", team1:null, team2:null, date:"", time:"", venue:"" }],
+  f:     [{ id:"f_0",     team1:null, team2:null, date:"19 Jul", time:"", venue:"MetLife Stadium" }],
 };
 
-const BASE_PTS  = { r16:1, qf:2, sf:4, f:8, champion:16 };
+// ─── ROUND CONFIG ──────────────────────────────────────────────────────────────
+const ROUNDS = [
+  { key:"r16",   label:"16AVOS",   pts:1  },
+  { key:"qf",    label:"CUARTOS",  pts:2  },
+  { key:"sf",    label:"SEMIS",    pts:4  },
+  { key:"third", label:"3ER LUGAR",pts:4  },
+  { key:"f",     label:"FINAL",    pts:8  },
+];
+const BASE_PTS   = { r16:1, qf:2, sf:4, third:4, f:8, champion:16 };
 const TIME_BONUS = 1;
-const TIME_OPTS = [
+const TIME_OPTS  = [
   { key:"90",  label:"90 min",   icon:"⚽" },
   { key:"et",  label:"Prórroga", icon:"⏱" },
   { key:"pen", label:"Penales",  icon:"🥅" },
 ];
 const ADMIN_PASS = "borregos2026";
-const ALL_TEAMS = [
-  ["Alemania","🇩🇪"],["Paraguay","🇵🇾"],["Francia","🇫🇷"],["Suecia","🇸🇪"],
-  ["Sudáfrica","🇿🇦"],["Canadá","🇨🇦"],["Países Bajos","🇳🇱"],["Marruecos","🇲🇦"],
-  ["Portugal","🇵🇹"],["Croacia","🇭🇷"],["España","🇪🇸"],["Austria","🇦🇹"],
-  ["EUA","🇺🇸"],["Bosnia","🇧🇦"],["Bélgica","🇧🇪"],["Senegal","🇸🇳"],
-  ["Brasil","🇧🇷"],["Japón","🇯🇵"],["Costa de Marfil","🇨🇮"],["Noruega","🇳🇴"],
-  ["México","🇲🇽"],["Ecuador","🇪🇨"],["Inglaterra","🏴󠁧󠁢󠁥󠁮󠁧󠁿"],["Congo","🇨🇩"],
-  ["Argentina","🇦🇷"],["Cabo Verde","🇨🇻"],["Australia","🇦🇺"],["Egipto","🇪🇬"],
-  ["Suiza","🇨🇭"],["Argelia","🇩🇿"],["Colombia","🇨🇴"],["Ghana","🇬🇭"],
-];
+const ALL_TEAMS  = Object.keys(TEAM_FLAGS);
 
 // ─── SCORE ────────────────────────────────────────────────────────────────────
 function calcScoreBreakdown(predictions, results) {
   let winPts = 0, timePts = 0;
-  for (const roundKey of ["r16","qf","sf","f"]) {
-    const pRound = predictions[roundKey] || {};
-    const rRound = results[roundKey]     || {};
+  for (const { key } of ROUNDS) {
+    const pRound = predictions[key] || {};
+    const rRound = results[key]     || {};
     for (const [id, rData] of Object.entries(rRound)) {
       if (!rData?.winner) continue;
       const pData = pRound[id];
       if (!pData?.winner) continue;
       if (pData.winner === rData.winner) {
-        winPts += BASE_PTS[roundKey];
+        winPts += BASE_PTS[key];
         if (pData.time && pData.time === rData.time) timePts += TIME_BONUS;
       }
     }
@@ -130,28 +166,27 @@ function calcScoreBreakdown(predictions, results) {
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [screen, setScreen]           = useState("home");
-  const [user,   setUser]             = useState(null);
-  const [players, setPlayers]         = useState({});
-  const [results, setResults]         = useState({ r16:{}, qf:{}, sf:{}, f:{}, champion:null });
+  const [screen, setScreen]                   = useState("home");
+  const [user,   setUser]                     = useState(null);
+  const [players, setPlayers]                 = useState({});
+  const [results, setResults]                 = useState({ r16:{}, qf:{}, sf:{}, third:{}, f:{}, champion:null });
   const [officialBracket, setOfficialBracket] = useState(INITIAL_BRACKET);
-  const [loading, setLoading]         = useState(true);
-  const [toast,   setToast]           = useState(null);
+  const [config,  setConfig]                  = useState({ lockedRounds:{}, championLocked:false, thirdPlaceLocked:false });
+  const [loading, setLoading]                 = useState(true);
+  const [toast,   setToast]                   = useState(null);
 
   useEffect(() => {
     (async () => {
-      const [p, r, ob] = await Promise.all([sbGetPlayers(), sbGetResults(), sbGetBracket()]);
-      if (p)  setPlayers(p);
-      if (r)  setResults(r);
+      const [p, r, ob, cfg] = await Promise.all([sbGetPlayers(), sbGetResults(), sbGetBracket(), sbGetConfig()]);
+      if (p) setPlayers(p);
+      if (r) setResults(r);
       if (ob && ob.r16) setOfficialBracket(ob);
+      if (cfg) setConfig(cfg);
       setLoading(false);
     })();
   }, []);
 
-  function showToast(msg, type="ok") {
-    setToast({msg,type});
-    setTimeout(() => setToast(null), 2800);
-  }
+  function showToast(msg, type="ok") { setToast({msg,type}); setTimeout(()=>setToast(null),2800); }
 
   async function handleLogin(code, pin) {
     const p = players[code.toUpperCase()];
@@ -160,7 +195,6 @@ export default function App() {
     setUser({ code:code.toUpperCase(), ...p });
     setScreen("play");
   }
-
   async function handleRegister(name, code, pin) {
     const c = code.toUpperCase();
     if (players[c])     return showToast("Ese código ya existe","err");
@@ -173,7 +207,6 @@ export default function App() {
     showToast("¡Bienvenido! Ya puedes hacer tus picks 🎉");
     setScreen("play");
   }
-
   function handleLogout() { setUser(null); setScreen("home"); }
 
   async function savePredictions(preds) {
@@ -183,12 +216,16 @@ export default function App() {
     setUser(u => ({...u, predictions:preds}));
     showToast("¡Picks guardados! ✅");
   }
-
   async function saveResults(newResults, newBracket) {
     await Promise.all([sbSetResults(newResults), sbSetBracket(newBracket)]);
     setResults(newResults);
     setOfficialBracket(newBracket);
     showToast("Resultados actualizados ✅");
+  }
+  async function saveConfig(newConfig) {
+    await sbSetConfig(newConfig);
+    setConfig(newConfig);
+    showToast("Configuración guardada ✅");
   }
 
   if (loading) return (
@@ -204,12 +241,12 @@ export default function App() {
       {toast && <Toast msg={toast.msg} type={toast.type}/>}
       <Header user={user} screen={screen} setScreen={setScreen} onLogout={handleLogout}/>
       <main style={S.main}>
-        {screen==="home"        && <HomeScreen    setScreen={setScreen} results={results} officialBracket={officialBracket}/>}
-        {screen==="login"       && <LoginScreen   onLogin={handleLogin} setScreen={setScreen}/>}
+        {screen==="home"        && <HomeScreen setScreen={setScreen} results={results} officialBracket={officialBracket}/>}
+        {screen==="login"       && <LoginScreen onLogin={handleLogin} setScreen={setScreen}/>}
         {screen==="register"    && <RegisterScreen onRegister={handleRegister} setScreen={setScreen}/>}
-        {screen==="play"        && <PlayScreen    user={user} officialBracket={officialBracket} results={results} onSave={savePredictions}/>}
-        {screen==="leaderboard" && <LeaderboardScreen players={players} results={results} user={user}/>}
-        {screen==="admin"       && <AdminScreen   bracket={officialBracket} results={results} onSave={saveResults} showToast={showToast}/>}
+        {screen==="play"        && <PlayScreen user={user} officialBracket={officialBracket} results={results} config={config} onSave={savePredictions}/>}
+        {screen==="leaderboard" && <LeaderboardScreen players={players} results={results} config={config} user={user}/>}
+        {screen==="admin"       && <AdminScreen bracket={officialBracket} results={results} config={config} onSave={saveResults} onSaveConfig={saveConfig} showToast={showToast}/>}
       </main>
     </div>
   );
@@ -245,12 +282,6 @@ function NB({active,onClick,children}) {
 
 // ─── HOME ─────────────────────────────────────────────────────────────────────
 function HomeScreen({setScreen,results,officialBracket}) {
-  const rounds=[
-    {key:"r16",label:"16AVOS",  color:"#3B82F6"},
-    {key:"qf", label:"CUARTOS", color:"#8B5CF6"},
-    {key:"sf", label:"SEMIS",   color:"#EC4899"},
-    {key:"f",  label:"FINAL",   color:"#E8C840"},
-  ];
   return (
     <div style={S.homeWrap}>
       <div style={S.hero}>
@@ -266,7 +297,7 @@ function HomeScreen({setScreen,results,officialBracket}) {
       <div style={S.scoreLegend}>
         <div style={S.scoreLegendTitle}>SISTEMA DE PUNTOS</div>
         <div style={S.scoreGrid}>
-          {[["16AVOS","1"],["CUARTOS","2"],["SEMIS","4"],["FINAL","8"],["CAMPEÓN","16"],["+ TIEMPO","1"]].map(([l,v])=>(
+          {[["16AVOS","1"],["CUARTOS","2"],["SEMIS","4"],["3ER LUGAR","4"],["FINAL","8"],["CAMPEÓN","16"],["+ TIEMPO","1"]].map(([l,v])=>(
             <div key={l} style={S.scoreCell}>
               <span style={S.scorePts}>{v}</span>
               <span style={S.scoreLabel}>{l}</span>
@@ -277,14 +308,15 @@ function HomeScreen({setScreen,results,officialBracket}) {
       </div>
       <div style={S.progressCard}>
         <div style={S.progressTitle}>AVANCE DEL TORNEO</div>
-        {rounds.map(r=>{
+        {ROUNDS.map(r=>{
           const total = officialBracket[r.key]?.length || 0;
           const done  = Object.values(results[r.key]||{}).filter(x=>x?.winner).length;
           const pct   = total ? (done/total)*100 : 0;
+          const colors = { r16:"#3B82F6", qf:"#8B5CF6", sf:"#EC4899", third:"#F59E0B", f:"#E8C840" };
           return (
             <div key={r.key} style={S.progRow}>
-              <span style={{...S.progName,color:r.color}}>{r.label}</span>
-              <div style={S.progTrack}><div style={{...S.progBar,width:`${pct}%`,background:r.color}}/></div>
+              <span style={{...S.progName,color:colors[r.key]}}>{r.label}</span>
+              <div style={S.progTrack}><div style={{...S.progBar,width:`${pct}%`,background:colors[r.key]}}/></div>
               <span style={S.progNum}>{done}/{total}</span>
             </div>
           );
@@ -299,7 +331,7 @@ function HomeScreen({setScreen,results,officialBracket}) {
   );
 }
 
-// ─── LOGIN ────────────────────────────────────────────────────────────────────
+// ─── LOGIN / REGISTER ─────────────────────────────────────────────────────────
 function LoginScreen({onLogin,setScreen}) {
   const [code,setCode]=useState(""); const [pin,setPin]=useState("");
   return (
@@ -312,13 +344,10 @@ function LoginScreen({onLogin,setScreen}) {
         onKeyDown={e=>e.key==="Enter"&&onLogin(code,pin)}/>
       <button style={S.btnMain} onClick={()=>onLogin(code,pin)}>ENTRAR</button>
       <p style={S.cardNote}>¿No tienes cuenta?{" "}
-        <span style={S.lnk} onClick={()=>setScreen("register")}>Regístrate aquí</span>
-      </p>
+        <span style={S.lnk} onClick={()=>setScreen("register")}>Regístrate aquí</span></p>
     </div>
   );
 }
-
-// ─── REGISTER ────────────────────────────────────────────────────────────────
 function RegisterScreen({onRegister,setScreen}) {
   const [name,setName]=useState(""); const [code,setCode]=useState(""); const [pin,setPin]=useState("");
   return (
@@ -331,15 +360,14 @@ function RegisterScreen({onRegister,setScreen}) {
         value={pin} onChange={e=>setPin(e.target.value)}/>
       <button style={S.btnMain} onClick={()=>onRegister(name,code,pin)}>REGISTRARSE</button>
       <p style={S.cardNote}>¿Ya tienes cuenta?{" "}
-        <span style={S.lnk} onClick={()=>setScreen("login")}>Inicia sesión</span>
-      </p>
+        <span style={S.lnk} onClick={()=>setScreen("login")}>Inicia sesión</span></p>
     </div>
   );
 }
 
 // ─── PLAY ─────────────────────────────────────────────────────────────────────
-function PlayScreen({user,officialBracket,results,onSave}) {
-  const [preds,setPreds] = useState(user?.predictions||{});
+function PlayScreen({user,officialBracket,results,config,onSave}) {
+  const [preds,setPreds]         = useState(user?.predictions||{});
   const [activeRound,setActiveRound] = useState("r16");
 
   if (!user) return (
@@ -348,21 +376,21 @@ function PlayScreen({user,officialBracket,results,onSave}) {
     </div>
   );
 
-  const rounds=[
-    {key:"r16",label:"16AVOS",  pts:1},
-    {key:"qf", label:"CUARTOS", pts:2},
-    {key:"sf", label:"SEMIS",   pts:4},
-    {key:"f",  label:"FINAL",   pts:8},
-  ];
-
   function pickWinner(roundKey,matchId,winner) {
+    if (config.lockedRounds?.[roundKey]) return;
     setPreds(p=>({...p,[roundKey]:{...(p[roundKey]||{}),[matchId]:{...(p[roundKey]?.[matchId]||{}),winner}}}));
   }
   function pickTime(roundKey,matchId,time) {
+    if (config.lockedRounds?.[roundKey]) return;
     setPreds(p=>({...p,[roundKey]:{...(p[roundKey]||{}),[matchId]:{...(p[roundKey]?.[matchId]||{}),time}}}));
+  }
+  function pickChampion(team) {
+    if (config.championLocked) return;
+    setPreds(p=>({...p,champion:team}));
   }
 
   const breakdown = calcScoreBreakdown(preds, results);
+  const roundLocked = config.lockedRounds?.[activeRound] || false;
 
   return (
     <div style={S.playWrap}>
@@ -380,33 +408,47 @@ function PlayScreen({user,officialBracket,results,onSave}) {
           </div>
         </div>
       </div>
+
       <div style={S.tabs}>
-        {rounds.map(r=>{
-          const matches = officialBracket[r.key]||[];
-          const picked = matches.filter(m=>(preds[r.key]||{})[m.id]?.winner).length;
+        {ROUNDS.map(r=>{
+          const matches=officialBracket[r.key]||[];
+          const picked=matches.filter(m=>(preds[r.key]||{})[m.id]?.winner).length;
+          const locked=config.lockedRounds?.[r.key];
           return (
             <button key={r.key} onClick={()=>setActiveRound(r.key)}
               style={{...S.tab,...(activeRound===r.key?S.tabOn:{})}}>
               <span style={S.tabLabel}>{r.label}</span>
-              <span style={S.tabPts}>+{r.pts}{r.pts>1?"pts":"pt"}</span>
+              <span style={S.tabPts}>+{r.pts}pts</span>
               <span style={S.tabPick}>{picked}/{matches.length}</span>
+              {locked && <span style={S.tabLock}>🔒</span>}
             </button>
           );
         })}
       </div>
+
+      {roundLocked && (
+        <div style={S.lockedBanner}>🔒 Esta ronda ya está bloqueada — no se pueden modificar picks</div>
+      )}
+
       <div style={S.matchList}>
         {(officialBracket[activeRound]||[]).map((m,idx)=>{
-          const t1=m.team1||"TBD", f1=m.flag1||"🏳";
-          const t2=m.team2||"TBD", f2=m.flag2||"🏳";
+          const t1=m.team1||"TBD", t2=m.team2||"TBD";
           const pData=(preds[activeRound]||{})[m.id]||{};
           const rData=(results[activeRound]||{})[m.id]||{};
           const hasResult=!!rData.winner;
           const winOk=hasResult&&pData.winner===rData.winner;
           const winErr=hasResult&&pData.winner&&pData.winner!==rData.winner;
           const timeOk=hasResult&&winOk&&pData.time&&pData.time===rData.time;
+          // live = locked but no result yet
+          const isLive = roundLocked && !hasResult;
           return (
-            <div key={m.id} style={{...S.matchCard,borderColor:winOk?"#22C55E":winErr?"#EF4444":"#1E3A5F"}}>
-              <div style={S.matchNum}>#{idx+1}</div>
+            <div key={m.id} style={{...S.matchCard,
+              borderColor:hasResult?(winOk?"#22C55E":winErr?"#EF4444":"#1E3A5F"):isLive?"#F59E0B":"#1E3A5F"}}>
+              <div style={S.matchMeta}>
+                <span style={S.matchNum}>#{idx+1}</span>
+                {m.date && <span style={S.matchDate}>{m.date} {m.time && `· ${m.time}`}{m.venue && ` · ${m.venue}`}</span>}
+                {isLive && <span style={S.liveBadge}>⚡ EN JUEGO</span>}
+              </div>
               {hasResult && (
                 <div style={S.resultRow}>
                   <span style={winOk?S.resOk:S.resErr}>{winOk?"✅ +"+BASE_PTS[activeRound]:"❌"}</span>
@@ -414,10 +456,10 @@ function PlayScreen({user,officialBracket,results,onSave}) {
                 </div>
               )}
               <div style={S.matchRow}>
-                <TeamBtn team={t1} flag={f1} selected={pData.winner===t1} disabled={hasResult}
+                <TeamBtn team={t1} selected={pData.winner===t1} disabled={roundLocked||hasResult}
                   correct={hasResult&&rData.winner===t1} onClick={()=>pickWinner(activeRound,m.id,t1)}/>
                 <div style={S.vsChip}>VS</div>
-                <TeamBtn team={t2} flag={f2} selected={pData.winner===t2} disabled={hasResult}
+                <TeamBtn team={t2} selected={pData.winner===t2} disabled={roundLocked||hasResult}
                   correct={hasResult&&rData.winner===t2} onClick={()=>pickWinner(activeRound,m.id,t2)}/>
               </div>
               {(pData.winner||hasResult) && (
@@ -425,7 +467,7 @@ function PlayScreen({user,officialBracket,results,onSave}) {
                   <span style={S.timeLabel}>¿Cómo gana?</span>
                   <div style={S.timeBtns}>
                     {TIME_OPTS.map(opt=>(
-                      <button key={opt.key} disabled={hasResult}
+                      <button key={opt.key} disabled={roundLocked||hasResult}
                         style={{...S.timeBtn,...(pData.time===opt.key?S.timeBtnOn:{}),...(hasResult&&rData.time===opt.key?S.timeBtnResult:{})}}
                         onClick={()=>pickTime(activeRound,m.id,opt.key)}>
                         {opt.icon} {opt.label}
@@ -438,40 +480,56 @@ function PlayScreen({user,officialBracket,results,onSave}) {
           );
         })}
       </div>
+
+      {/* CHAMPION PICK — shown on final tab */}
       {activeRound==="f" && (
         <div style={S.champCard}>
-          <div style={S.champTitle}>🏆 CAMPEÓN DEL MUNDO <span style={{color:"#E8C840"}}>(+16 pts)</span></div>
+          <div style={S.champTitle}>
+            🏆 CAMPEÓN DEL MUNDO <span style={{color:"#E8C840"}}>(+16 pts)</span>
+            {config.championLocked && <span style={S.champLocked}> 🔒 BLOQUEADO</span>}
+          </div>
+          {config.championLocked && !preds.champion && (
+            <p style={{color:"#EF4444",textAlign:"center",fontSize:12,margin:"0 0 8px"}}>No seleccionaste campeón antes del bloqueo</p>
+          )}
           <div style={S.champGrid}>
-            {ALL_TEAMS.map(([team,flag])=>(
-              <button key={team} style={{...S.champBtn,...(preds.champion===team?S.champOn:{})}}
-                onClick={()=>setPreds(p=>({...p,champion:team}))}>
-                {flag}<br/><span style={{fontSize:9}}>{team}</span>
+            {ALL_TEAMS.map(team=>(
+              <button key={team}
+                style={{...S.champBtn,...(preds.champion===team?S.champOn:{}),...(config.championLocked?{opacity:0.7,cursor:"default"}:{})}}
+                onClick={()=>pickChampion(team)}>
+                <Flag team={team} size={28}/>
+                <span style={{fontSize:9,marginTop:3}}>{team}</span>
               </button>
             ))}
           </div>
         </div>
       )}
-      <button style={{...S.btnMain,marginTop:20}} onClick={()=>onSave(preds)}>
-        GUARDAR PICKS 💾
-      </button>
+
+      {!roundLocked && (
+        <button style={{...S.btnMain,marginTop:20}} onClick={()=>onSave(preds)}>
+          GUARDAR PICKS 💾
+        </button>
+      )}
+      {roundLocked && (
+        <div style={{...S.lockedBanner,marginTop:16}}>🔒 Picks bloqueados para esta ronda</div>
+      )}
     </div>
   );
 }
 
-function TeamBtn({team,flag,selected,disabled,correct,onClick}) {
+function TeamBtn({team,selected,disabled,correct,onClick}) {
   return (
     <button onClick={onClick} disabled={disabled&&!selected}
       style={{...S.teamBtn,...(selected?S.teamOn:{}),...(correct?S.teamCorrect:{}),...(disabled&&!selected?{opacity:0.55,cursor:"default"}:{})}}>
-      <span style={S.teamFlag}>{flag}</span>
+      <Flag team={team} size={32}/>
       <span style={S.teamName}>{team}</span>
     </button>
   );
 }
 
 // ─── LEADERBOARD ──────────────────────────────────────────────────────────────
-function LeaderboardScreen({players,results,user}) {
+function LeaderboardScreen({players,results,config,user}) {
   const ranked = Object.entries(players)
-    .map(([code,p])=>{ const bd=calcScoreBreakdown(p.predictions||{},results); return {code,name:p.name,...bd}; })
+    .map(([code,p])=>{ const bd=calcScoreBreakdown(p.predictions||{},results); return {code,name:p.name,predictions:p.predictions||{},...bd}; })
     .sort((a,b)=>b.total-a.total);
   const medals=["🥇","🥈","🥉"];
   return (
@@ -486,7 +544,14 @@ function LeaderboardScreen({players,results,user}) {
           <div key={p.code} style={{...S.lbRow,...(p.code===user?.code?S.lbRowMe:{})}}>
             <span style={S.lbPos}>{medals[i]||`${i+1}`}</span>
             <div style={S.lbCodeWrap}><span style={S.lbCode}>{p.code}</span></div>
-            <span style={S.lbName}>{p.name}</span>
+            <div style={S.lbInfo}>
+              <span style={S.lbName}>{p.name}</span>
+              {config.championLocked && p.predictions.champion && (
+                <span style={S.lbChamp}>
+                  🏆 <Flag team={p.predictions.champion} size={14}/> {p.predictions.champion}
+                </span>
+              )}
+            </div>
             <div style={S.lbPts}>
               <span style={S.lbTotal}>{p.total}</span>
               <span style={S.lbBreak}>
@@ -502,30 +567,43 @@ function LeaderboardScreen({players,results,user}) {
 }
 
 // ─── ADMIN ────────────────────────────────────────────────────────────────────
-function AdminScreen({bracket,results,onSave,showToast}) {
-  const [pass,setPass]=useState(""); const [auth,setAuth]=useState(false);
-  const [localRes,setLocalRes]         = useState(()=>JSON.parse(JSON.stringify(results)));
+function AdminScreen({bracket,results,config,onSave,onSaveConfig,showToast}) {
+  const [pass,setPass]           = useState("");
+  const [auth,setAuth]           = useState(false);
+  const [localRes,setLocalRes]   = useState(()=>JSON.parse(JSON.stringify(results)));
   const [localBracket,setLocalBracket] = useState(()=>JSON.parse(JSON.stringify(bracket)));
-  const [activeRound,setActiveRound]   = useState("r16");
+  const [localConfig,setLocalConfig]   = useState(()=>JSON.parse(JSON.stringify(config)));
+  const [activeTab,setActiveTab] = useState("results"); // results | locks
+  const [activeRound,setActiveRound] = useState("r16");
 
   useEffect(()=>{
     setLocalRes(JSON.parse(JSON.stringify(results)));
     setLocalBracket(JSON.parse(JSON.stringify(bracket)));
-  },[results,bracket]);
+    setLocalConfig(JSON.parse(JSON.stringify(config)));
+  },[results,bracket,config]);
 
   function login(){ if(pass===ADMIN_PASS) setAuth(true); else showToast("Contraseña incorrecta","err"); }
 
-  function setWinner(roundKey,matchId,winner,flag){
+  function setWinner(roundKey,matchId,winner){
     setLocalRes(r=>({...r,[roundKey]:{...(r[roundKey]||{}),[matchId]:{...((r[roundKey]||{})[matchId]||{}),winner,time:undefined}}}));
     setLocalBracket(b=>{
       const order=["r16","qf","sf","f"]; const ri=order.indexOf(roundKey);
       if(ri>=order.length-1) return b;
       const next=order[ri+1];
-      const idx=(b[roundKey]||[]).findIndex(m=>m.id===matchId);
+      const matches=b[roundKey]||[];
+      const idx=matches.findIndex(m=>m.id===matchId);
       if(idx<0) return b;
       const nextIdx=Math.floor(idx/2);
-      const slot=idx%2===0?"team1":"team2"; const fslot=slot==="team1"?"flag1":"flag2";
-      return {...b,[next]:(b[next]||[]).map((m,i)=>i===nextIdx?{...m,[slot]:winner,[fslot]:flag}:m)};
+      const slot=idx%2===0?"team1":"team2";
+      // also propagate loser to third place
+      const loser = winner===matches[idx].team1 ? matches[idx].team2 : matches[idx].team1;
+      let newB = {...b,[next]:(b[next]||[]).map((m,i)=>i===nextIdx?{...m,[slot]:winner}:m)};
+      // if semifinal, propagate loser to third place match
+      if(roundKey==="sf") {
+        const thirdSlot = idx===0?"team1":"team2";
+        newB = {...newB, third:(b.third||[]).map((m,i)=>i===0?{...m,[thirdSlot]:loser}:m)};
+      }
+      return newB;
     });
   }
   function setTime(roundKey,matchId,time){
@@ -533,6 +611,12 @@ function AdminScreen({bracket,results,onSave,showToast}) {
   }
   function clearResult(roundKey,matchId){
     setLocalRes(r=>({...r,[roundKey]:{...(r[roundKey]||{}),[matchId]:{}}}));
+  }
+  function toggleRoundLock(roundKey){
+    setLocalConfig(c=>({...c,lockedRounds:{...(c.lockedRounds||{}),[roundKey]:!c.lockedRounds?.[roundKey]}}));
+  }
+  function toggleChampionLock(){
+    setLocalConfig(c=>({...c,championLocked:!c.championLocked}));
   }
 
   if(!auth) return (
@@ -545,84 +629,138 @@ function AdminScreen({bracket,results,onSave,showToast}) {
     </div>
   );
 
-  const rounds=[{key:"r16",label:"16AVOS"},{key:"qf",label:"CUARTOS"},{key:"sf",label:"SEMIS"},{key:"f",label:"FINAL"}];
   return (
     <div style={S.playWrap}>
       <div style={S.adminHeader}>
         <span style={S.adminTitle}>⚙️ PANEL ADMIN</span>
-        <button style={S.btnMain} onClick={()=>onSave(localRes,localBracket)}>GUARDAR 💾</button>
       </div>
+
+      {/* Admin tabs */}
       <div style={S.tabs}>
-        {rounds.map(r=>(
-          <button key={r.key} onClick={()=>setActiveRound(r.key)}
-            style={{...S.tab,...(activeRound===r.key?S.tabOn:{})}}>
-            <span style={S.tabLabel}>{r.label}</span>
-          </button>
-        ))}
+        <button style={{...S.tab,...(activeTab==="results"?S.tabOn:{})}} onClick={()=>setActiveTab("results")}>
+          <span style={S.tabLabel}>RESULTADOS</span>
+        </button>
+        <button style={{...S.tab,...(activeTab==="locks"?S.tabOn:{})}} onClick={()=>setActiveTab("locks")}>
+          <span style={S.tabLabel}>🔒 BLOQUEOS</span>
+        </button>
       </div>
-      <div style={S.matchList}>
-        {(localBracket[activeRound]||[]).map((m,idx)=>{
-          const t1=m.team1||"TBD",f1=m.flag1||"🏳";
-          const t2=m.team2||"TBD",f2=m.flag2||"🏳";
-          const rData=(localRes[activeRound]||{})[m.id]||{};
-          return (
-            <div key={m.id} style={S.adminCard}>
-              <div style={S.adminCardTop}>
-                <span style={S.adminMatchNum}>Partido #{idx+1}</span>
-                {rData.winner && <button style={S.clearBtn} onClick={()=>clearResult(activeRound,m.id)}>✕ Limpiar</button>}
-              </div>
-              <div style={S.adminTeams}>
-                <button disabled={t1==="TBD"}
-                  style={{...S.adminTeamBtn,...(rData.winner===t1?S.adminTeamOn:{})}}
-                  onClick={()=>setWinner(activeRound,m.id,t1,f1)}>{f1} {t1}</button>
-                <span style={S.adminVs}>VS</span>
-                <button disabled={t2==="TBD"}
-                  style={{...S.adminTeamBtn,...(rData.winner===t2?S.adminTeamOn:{})}}
-                  onClick={()=>setWinner(activeRound,m.id,t2,f2)}>{f2} {t2}</button>
-              </div>
-              {rData.winner && (
-                <div style={S.adminTimeBlock}>
-                  <div style={S.adminTimeHeader}>
-                    <span style={S.adminTimeHeaderLabel}>⏱ ¿Cómo ganó {rData.winner}?</span>
-                    {!rData.time && <span style={S.adminTimePending}>← requerido</span>}
-                    {rData.time  && <span style={S.adminTimeDone}>✓ registrado</span>}
-                  </div>
-                  <div style={S.adminTimeBtns}>
-                    {TIME_OPTS.map(opt=>{
-                      const sel=rData.time===opt.key;
-                      return (
-                        <button key={opt.key}
-                          style={{...S.adminTimeBtn,...(sel?S.adminTimeOn:{})}}
-                          onClick={()=>setTime(activeRound,m.id,opt.key)}>
-                          <span style={{fontSize:20}}>{opt.icon}</span>
-                          <span style={{...S.adminTimeOptLabel,...(sel?S.adminTimeOnLabel:{})}}>{opt.label}</span>
-                          {sel && <span style={{color:"#22C55E",fontSize:11,fontFamily:FONT_COND,fontWeight:700}}>✓</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
+
+      {/* LOCKS TAB */}
+      {activeTab==="locks" && (
+        <div style={S.locksPanel}>
+          <p style={S.locksPanelNote}>Bloquea una ronda para que los jugadores no puedan cambiar sus picks. Una vez bloqueado se muestra "EN JUEGO".</p>
+          {ROUNDS.map(r=>{
+            const locked = localConfig.lockedRounds?.[r.key] || false;
+            return (
+              <div key={r.key} style={S.lockRow}>
+                <div>
+                  <div style={S.lockRoundName}>{r.label}</div>
+                  <div style={S.lockRoundSub}>+{r.pts} pts por acierto</div>
                 </div>
-              )}
+                <button style={{...S.lockBtn,...(locked?S.lockBtnOn:{})}} onClick={()=>toggleRoundLock(r.key)}>
+                  {locked ? "🔒 BLOQUEADO" : "🔓 ABIERTO"}
+                </button>
+              </div>
+            );
+          })}
+          <div style={{...S.lockRow,borderColor:"#E8C840"}}>
+            <div>
+              <div style={S.lockRoundName}>🏆 SELECCIÓN DE CAMPEÓN</div>
+              <div style={S.lockRoundSub}>Al bloquear se muestra el campeón de cada jugador en la tabla</div>
             </div>
-          );
-        })}
-      </div>
-      {activeRound==="f" && (
-        <div style={S.champCard}>
-          <div style={S.champTitle}>🏆 DEFINIR CAMPEÓN</div>
-          <div style={S.champGrid}>
-            {ALL_TEAMS.map(([team,flag])=>(
-              <button key={team} style={{...S.champBtn,...(localRes.champion===team?S.champOn:{})}}
-                onClick={()=>setLocalRes(r=>({...r,champion:team}))}>
-                {flag}<br/><span style={{fontSize:9}}>{team}</span>
+            <button style={{...S.lockBtn,...(localConfig.championLocked?S.lockBtnOn:{})}} onClick={toggleChampionLock}>
+              {localConfig.championLocked ? "🔒 BLOQUEADO" : "🔓 ABIERTO"}
+            </button>
+          </div>
+          <button style={{...S.btnMain,marginTop:16}} onClick={()=>onSaveConfig(localConfig)}>
+            GUARDAR BLOQUEOS 💾
+          </button>
+        </div>
+      )}
+
+      {/* RESULTS TAB */}
+      {activeTab==="results" && (
+        <>
+          <div style={S.tabs}>
+            {ROUNDS.map(r=>(
+              <button key={r.key} onClick={()=>setActiveRound(r.key)}
+                style={{...S.tab,...(activeRound===r.key?S.tabOn:{})}}>
+                <span style={S.tabLabel}>{r.label}</span>
               </button>
             ))}
           </div>
-        </div>
+          <div style={S.matchList}>
+            {(localBracket[activeRound]||[]).map((m,idx)=>{
+              const t1=m.team1||"TBD", t2=m.team2||"TBD";
+              const rData=(localRes[activeRound]||{})[m.id]||{};
+              return (
+                <div key={m.id} style={S.adminCard}>
+                  <div style={S.adminCardTop}>
+                    <div>
+                      <span style={S.adminMatchNum}>Partido #{idx+1}</span>
+                      {m.date && <span style={{...S.matchDate,marginLeft:8}}>{m.date} {m.time && `· ${m.time}`}</span>}
+                    </div>
+                    {rData.winner && <button style={S.clearBtn} onClick={()=>clearResult(activeRound,m.id)}>✕ Limpiar</button>}
+                  </div>
+                  <div style={S.adminTeams}>
+                    <button disabled={t1==="TBD"}
+                      style={{...S.adminTeamBtn,...(rData.winner===t1?S.adminTeamOn:{})}}
+                      onClick={()=>setWinner(activeRound,m.id,t1)}>
+                      <Flag team={t1} size={24}/> {t1}
+                    </button>
+                    <span style={S.adminVs}>VS</span>
+                    <button disabled={t2==="TBD"}
+                      style={{...S.adminTeamBtn,...(rData.winner===t2?S.adminTeamOn:{})}}
+                      onClick={()=>setWinner(activeRound,m.id,t2)}>
+                      <Flag team={t2} size={24}/> {t2}
+                    </button>
+                  </div>
+                  {rData.winner && (
+                    <div style={S.adminTimeBlock}>
+                      <div style={S.adminTimeHeader}>
+                        <span style={S.adminTimeHeaderLabel}>⏱ ¿Cómo ganó {rData.winner}?</span>
+                        {!rData.time && <span style={S.adminTimePending}>← requerido</span>}
+                        {rData.time  && <span style={S.adminTimeDone}>✓ registrado</span>}
+                      </div>
+                      <div style={S.adminTimeBtns}>
+                        {TIME_OPTS.map(opt=>{
+                          const sel=rData.time===opt.key;
+                          return (
+                            <button key={opt.key}
+                              style={{...S.adminTimeBtn,...(sel?S.adminTimeOn:{})}}
+                              onClick={()=>setTime(activeRound,m.id,opt.key)}>
+                              <span style={{fontSize:20}}>{opt.icon}</span>
+                              <span style={{...S.adminTimeOptLabel,...(sel?S.adminTimeOnLabel:{})}}>{opt.label}</span>
+                              {sel && <span style={{color:"#22C55E",fontSize:11,fontWeight:700}}>✓</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {activeRound==="f" && (
+            <div style={S.champCard}>
+              <div style={S.champTitle}>🏆 DEFINIR CAMPEÓN</div>
+              <div style={S.champGrid}>
+                {ALL_TEAMS.map(team=>(
+                  <button key={team} style={{...S.champBtn,...(localRes.champion===team?S.champOn:{})}}
+                    onClick={()=>setLocalRes(r=>({...r,champion:team}))}>
+                    <Flag team={team} size={24}/>
+                    <span style={{fontSize:9,marginTop:3}}>{team}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <button style={{...S.btnMain,marginTop:16}} onClick={()=>onSave(localRes,localBracket)}>
+            GUARDAR RESULTADOS 💾
+          </button>
+        </>
       )}
-      <button style={{...S.btnMain,marginTop:16}} onClick={()=>onSave(localRes,localBracket)}>
-        GUARDAR RESULTADOS 💾
-      </button>
     </div>
   );
 }
@@ -632,7 +770,7 @@ function Toast({msg,type}) {
   return <div style={{...S.toast,...(type==="err"?S.toastErr:{})}}>{msg}</div>;
 }
 
-// ─── CSS & STYLES ─────────────────────────────────────────────────────────────
+// ─── CSS ──────────────────────────────────────────────────────────────────────
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
   * { box-sizing: border-box; }
@@ -640,13 +778,13 @@ const CSS = `
   button:focus { outline: 2px solid #E8C840; outline-offset: 2px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.5} }
 `;
-
 const FONT_COND = "'Barlow Condensed', 'Arial Narrow', sans-serif";
 const FONT_BODY = "'Inter', system-ui, sans-serif";
 
 const S = {
-  root:{ minHeight:"100vh", background:"#040D18", fontFamily:FONT_BODY, color:"#E2E8F0" },
+  root:{ minHeight:"100vh",background:"#040D18",fontFamily:FONT_BODY,color:"#E2E8F0" },
   loadScreen:{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"#040D18" },
   spinner:{ width:44,height:44,border:"3px solid #0F2A4A",borderTop:"3px solid #E8C840",borderRadius:"50%",animation:"spin 0.8s linear infinite" },
   header:{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 16px",height:56,background:"#020810",borderBottom:"2px solid #E8C840",position:"sticky",top:0,zIndex:200 },
@@ -655,7 +793,7 @@ const S = {
   logoRam:{ fontSize:22 },
   logoTop:{ fontFamily:FONT_COND,fontWeight:900,fontSize:16,color:"#E8C840",letterSpacing:3,lineHeight:1 },
   logoBottom:{ fontFamily:FONT_COND,fontWeight:700,fontSize:11,color:"#60A5FA",letterSpacing:4,lineHeight:1.2 },
-  nav:{ display:"flex",gap:4,alignItems:"center" },
+  nav:{ display:"flex",gap:4,alignItems:"center",flexWrap:"wrap" },
   nb:{ background:"transparent",border:"1px solid #1E3A5F",color:"#94A3B8",padding:"5px 9px",borderRadius:4,cursor:"pointer",fontFamily:FONT_COND,fontWeight:700,fontSize:12,letterSpacing:1 },
   nbOn:{ background:"#E8C840",color:"#040D18",borderColor:"#E8C840" },
   outBtn:{ background:"#1A0808",border:"1px solid #7F1D1D",color:"#FCA5A5",padding:"5px 9px",borderRadius:4,cursor:"pointer",fontFamily:FONT_COND,fontWeight:700,fontSize:12,letterSpacing:1 },
@@ -672,15 +810,15 @@ const S = {
   heroDate:{ fontFamily:FONT_COND,fontWeight:600,fontSize:12,color:"#94A3B8",letterSpacing:2 },
   scoreLegend:{ background:"#0A1628",border:"1px solid #1E3A5F",borderRadius:12,padding:16 },
   scoreLegendTitle:{ fontFamily:FONT_COND,fontWeight:800,fontSize:13,color:"#E8C840",letterSpacing:3,marginBottom:12 },
-  scoreGrid:{ display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6,marginBottom:10 },
-  scoreCell:{ display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"#0D1F35",borderRadius:6,padding:"8px 4px" },
-  scorePts:{ fontFamily:FONT_COND,fontWeight:900,fontSize:22,color:"#E8C840" },
-  scoreLabel:{ fontFamily:FONT_COND,fontSize:9,color:"#64748B",letterSpacing:1,textAlign:"center" },
+  scoreGrid:{ display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:10 },
+  scoreCell:{ display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"#0D1F35",borderRadius:6,padding:"6px 2px" },
+  scorePts:{ fontFamily:FONT_COND,fontWeight:900,fontSize:20,color:"#E8C840" },
+  scoreLabel:{ fontFamily:FONT_COND,fontSize:8,color:"#64748B",letterSpacing:0.5,textAlign:"center" },
   scoreNote:{ fontSize:11,color:"#60A5FA",textAlign:"center",margin:0 },
   progressCard:{ background:"#0A1628",border:"1px solid #1E3A5F",borderRadius:12,padding:16 },
   progressTitle:{ fontFamily:FONT_COND,fontWeight:800,fontSize:13,color:"#94A3B8",letterSpacing:3,marginBottom:14 },
   progRow:{ display:"flex",alignItems:"center",gap:10,marginBottom:8 },
-  progName:{ fontFamily:FONT_COND,fontWeight:700,fontSize:11,letterSpacing:2,width:56 },
+  progName:{ fontFamily:FONT_COND,fontWeight:700,fontSize:10,letterSpacing:1,width:64,flexShrink:0 },
   progTrack:{ flex:1,height:5,background:"#1E3A5F",borderRadius:3,overflow:"hidden" },
   progBar:{ height:"100%",borderRadius:3,transition:"width 0.5s ease" },
   progNum:{ fontSize:11,color:"#475569",width:30,textAlign:"right" },
@@ -701,15 +839,20 @@ const S = {
   scoreTotal:{ fontFamily:FONT_COND,fontWeight:900,fontSize:36,color:"#FFFFFF",lineHeight:1 },
   scoreSub:{ fontFamily:FONT_COND,fontSize:11,color:"#E8C840",letterSpacing:2 },
   scoreDetail:{ fontSize:11,marginTop:2 },
-  tabs:{ display:"flex",gap:6 },
-  tab:{ flex:1,background:"#0A1628",border:"1px solid #1E3A5F",borderRadius:8,padding:"8px 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2 },
+  tabs:{ display:"flex",gap:6,flexWrap:"wrap" },
+  tab:{ flex:1,minWidth:60,background:"#0A1628",border:"1px solid #1E3A5F",borderRadius:8,padding:"8px 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:1 },
   tabOn:{ background:"#0D2137",border:"1px solid #E8C840" },
-  tabLabel:{ fontFamily:FONT_COND,fontWeight:800,fontSize:12,color:"#CBD5E1",letterSpacing:1 },
-  tabPts:{ fontFamily:FONT_COND,fontSize:10,color:"#E8C840" },
-  tabPick:{ fontSize:10,color:"#475569" },
+  tabLabel:{ fontFamily:FONT_COND,fontWeight:800,fontSize:11,color:"#CBD5E1",letterSpacing:0.5 },
+  tabPts:{ fontFamily:FONT_COND,fontSize:9,color:"#E8C840" },
+  tabPick:{ fontSize:9,color:"#475569" },
+  tabLock:{ fontSize:10 },
+  lockedBanner:{ background:"rgba(245,158,11,0.1)",border:"1px solid #F59E0B",borderRadius:8,padding:"10px 14px",fontFamily:FONT_COND,fontWeight:700,fontSize:13,color:"#F59E0B",textAlign:"center",letterSpacing:1 },
+  liveBadge:{ fontFamily:FONT_COND,fontWeight:800,fontSize:10,color:"#F59E0B",letterSpacing:1,animation:"pulse 1.5s infinite" },
   matchList:{ display:"flex",flexDirection:"column",gap:10 },
   matchCard:{ background:"#0A1628",border:"1px solid #1E3A5F",borderRadius:12,padding:12,display:"flex",flexDirection:"column",gap:10,animation:"slideUp 0.2s ease" },
+  matchMeta:{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" },
   matchNum:{ fontFamily:FONT_COND,fontSize:10,color:"#475569",letterSpacing:2 },
+  matchDate:{ fontFamily:FONT_COND,fontSize:10,color:"#3B82F6",letterSpacing:0.5 },
   resultRow:{ display:"flex",gap:10,alignItems:"center" },
   resOk:{ fontFamily:FONT_COND,fontWeight:700,fontSize:13,color:"#22C55E" },
   resErr:{ fontFamily:FONT_COND,fontWeight:700,fontSize:13,color:"#EF4444" },
@@ -720,7 +863,6 @@ const S = {
   teamBtn:{ flex:1,background:"#040D18",border:"1px solid #1E3A5F",borderRadius:8,padding:"10px 6px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4 },
   teamOn:{ background:"#0D1F35",border:"1px solid #E8C840" },
   teamCorrect:{ border:"1px solid #22C55E",background:"rgba(34,197,94,0.08)" },
-  teamFlag:{ fontSize:24 },
   teamName:{ fontFamily:FONT_COND,fontWeight:700,fontSize:10,color:"#94A3B8",letterSpacing:0.5,textAlign:"center" },
   timeRow:{ borderTop:"1px solid #1E3A5F",paddingTop:8,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" },
   timeLabel:{ fontFamily:FONT_COND,fontSize:11,color:"#64748B",letterSpacing:1,flexShrink:0 },
@@ -729,9 +871,10 @@ const S = {
   timeBtnOn:{ background:"#0A2040",border:"1px solid #3B82F6",color:"#93C5FD" },
   timeBtnResult:{ border:"1px solid #22C55E",color:"#22C55E" },
   champCard:{ background:"linear-gradient(135deg,#0A1628,#071020)",border:"1px solid rgba(232,200,64,0.3)",borderRadius:12,padding:16 },
-  champTitle:{ fontFamily:FONT_COND,fontWeight:900,fontSize:15,letterSpacing:3,color:"#FFFFFF",textAlign:"center",marginBottom:12 },
+  champTitle:{ fontFamily:FONT_COND,fontWeight:900,fontSize:14,letterSpacing:2,color:"#FFFFFF",textAlign:"center",marginBottom:12 },
+  champLocked:{ color:"#EF4444",fontSize:12 },
   champGrid:{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6 },
-  champBtn:{ background:"#040D18",border:"1px solid #1E3A5F",borderRadius:8,padding:"8px 4px",cursor:"pointer",fontFamily:FONT_COND,fontSize:11,color:"#94A3B8",textAlign:"center",lineHeight:1.4 },
+  champBtn:{ background:"#040D18",border:"1px solid #1E3A5F",borderRadius:8,padding:"8px 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",fontFamily:FONT_COND,color:"#94A3B8",lineHeight:1.4 },
   champOn:{ background:"#1A1A00",border:"1px solid #E8C840",color:"#E8C840" },
   lbWrap:{ display:"flex",flexDirection:"column",gap:8 },
   lbHeader:{ background:"linear-gradient(135deg,#0A1628,#071020)",border:"1px solid #1E3A5F",borderRadius:12,padding:"20px 16px",textAlign:"center",marginBottom:4 },
@@ -742,8 +885,10 @@ const S = {
   lbPos:{ fontFamily:FONT_COND,fontWeight:900,fontSize:18,width:28,flexShrink:0 },
   lbCodeWrap:{ flexShrink:0 },
   lbCode:{ fontFamily:FONT_COND,fontWeight:800,fontSize:13,letterSpacing:2,background:"#1E3A5F",borderRadius:4,padding:"2px 7px",color:"#60A5FA" },
-  lbName:{ flex:1,fontSize:13,color:"#E2E8F0",fontWeight:500 },
-  lbPts:{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2 },
+  lbInfo:{ flex:1,display:"flex",flexDirection:"column",gap:2,minWidth:0 },
+  lbName:{ fontSize:13,color:"#E2E8F0",fontWeight:500 },
+  lbChamp:{ display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#E8C840",fontFamily:FONT_COND,fontWeight:600 },
+  lbPts:{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0 },
   lbTotal:{ fontFamily:FONT_COND,fontWeight:900,fontSize:20,color:"#FFFFFF" },
   lbBreak:{ fontSize:10 },
   empty:{ color:"#475569",textAlign:"center",padding:"40px 20px",fontFamily:FONT_COND,fontSize:16,letterSpacing:2 },
@@ -754,19 +899,26 @@ const S = {
   adminMatchNum:{ fontFamily:FONT_COND,fontSize:11,color:"#475569",letterSpacing:2 },
   clearBtn:{ background:"#1A0808",border:"1px solid #7F1D1D",color:"#FCA5A5",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontFamily:FONT_COND,fontSize:11,fontWeight:600 },
   adminTeams:{ display:"flex",alignItems:"center",gap:8 },
-  adminTeamBtn:{ flex:1,background:"#040D18",border:"1px solid #1E3A5F",borderRadius:8,padding:"10px 8px",cursor:"pointer",fontFamily:FONT_COND,fontWeight:700,fontSize:13,color:"#94A3B8",letterSpacing:0.5 },
+  adminTeamBtn:{ flex:1,background:"#040D18",border:"1px solid #1E3A5F",borderRadius:8,padding:"8px",cursor:"pointer",fontFamily:FONT_COND,fontWeight:700,fontSize:12,color:"#94A3B8",display:"flex",alignItems:"center",gap:6 },
   adminTeamOn:{ background:"#0A2008",border:"1px solid #22C55E",color:"#22C55E" },
   adminVs:{ fontFamily:FONT_COND,fontWeight:900,fontSize:11,color:"#475569",flexShrink:0,letterSpacing:1 },
-  adminTimeBlock:{ borderTop:"2px solid #1E3A5F",paddingTop:10,marginTop:2,display:"flex",flexDirection:"column",gap:8 },
+  adminTimeBlock:{ borderTop:"2px solid #1E3A5F",paddingTop:10,display:"flex",flexDirection:"column",gap:8 },
   adminTimeHeader:{ display:"flex",alignItems:"center",justifyContent:"space-between" },
   adminTimeHeaderLabel:{ fontFamily:FONT_COND,fontWeight:800,fontSize:13,color:"#CBD5E1",letterSpacing:1 },
-  adminTimePending:{ fontFamily:FONT_COND,fontWeight:700,fontSize:11,color:"#F59E0B",letterSpacing:1,background:"rgba(245,158,11,0.1)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:4,padding:"2px 8px" },
-  adminTimeDone:{ fontFamily:FONT_COND,fontWeight:700,fontSize:11,color:"#22C55E",letterSpacing:1,background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:4,padding:"2px 8px" },
+  adminTimePending:{ fontFamily:FONT_COND,fontWeight:700,fontSize:11,color:"#F59E0B",background:"rgba(245,158,11,0.1)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:4,padding:"2px 8px" },
+  adminTimeDone:{ fontFamily:FONT_COND,fontWeight:700,fontSize:11,color:"#22C55E",background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:4,padding:"2px 8px" },
   adminTimeBtns:{ display:"flex",gap:8 },
   adminTimeBtn:{ flex:1,background:"#040D18",border:"2px solid #1E3A5F",borderRadius:8,padding:"10px 6px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4 },
-  adminTimeOptLabel:{ fontFamily:FONT_COND,fontWeight:700,fontSize:12,color:"#64748B",letterSpacing:0.5 },
+  adminTimeOptLabel:{ fontFamily:FONT_COND,fontWeight:700,fontSize:12,color:"#64748B" },
   adminTimeOn:{ background:"#0A1F3A",border:"2px solid #3B82F6" },
   adminTimeOnLabel:{ color:"#93C5FD" },
+  locksPanel:{ display:"flex",flexDirection:"column",gap:12 },
+  locksPanelNote:{ fontSize:12,color:"#64748B",margin:"0 0 4px",lineHeight:1.5 },
+  lockRow:{ display:"flex",alignItems:"center",justifyContent:"space-between",background:"#0A1628",border:"1px solid #1E3A5F",borderRadius:10,padding:"12px 14px",gap:12 },
+  lockRoundName:{ fontFamily:FONT_COND,fontWeight:800,fontSize:14,color:"#CBD5E1",letterSpacing:1 },
+  lockRoundSub:{ fontSize:11,color:"#475569",marginTop:2 },
+  lockBtn:{ background:"#0D1F35",border:"1px solid #1E3A5F",borderRadius:6,padding:"8px 14px",cursor:"pointer",fontFamily:FONT_COND,fontWeight:700,fontSize:12,color:"#64748B",letterSpacing:1,flexShrink:0 },
+  lockBtnOn:{ background:"#1A0808",border:"1px solid #EF4444",color:"#FCA5A5" },
   toast:{ position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"#0D2137",border:"1px solid #3B82F6",borderRadius:8,padding:"12px 24px",fontFamily:FONT_COND,fontSize:14,fontWeight:700,letterSpacing:1,color:"#E2E8F0",zIndex:999,whiteSpace:"nowrap",boxShadow:"0 8px 32px rgba(0,0,0,0.6)" },
   toastErr:{ background:"#1A0808",borderColor:"#EF4444",color:"#FCA5A5" },
 };
