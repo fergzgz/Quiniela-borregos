@@ -11,7 +11,7 @@ async function sbGetPlayers() {
     const rows = await r.json();
     const obj = {};
     for (const row of (Array.isArray(rows) ? rows : [])) {
-      obj[row.code] = { name: row.name, pin: row.pin, predictions: row.predictions || {} };
+      obj[row.code] = { name: row.name, pin: row.pin, predictions: row.predictions || {}, bonus: row.bonus || 0 };
     }
     return obj;
   } catch { return {}; }
@@ -24,6 +24,15 @@ async function sbSavePlayer(code, name, pin, predictions) {
     });
   } catch {}
 }
+async function sbSaveBonus(code, bonus) {
+  try {
+    await fetch(`${SUPA_URL}/rest/v1/players?code=eq.${code}`, {
+      method: "PATCH", headers: H,
+      body: JSON.stringify({ bonus }),
+    });
+  } catch {}
+}
+
 async function sbGetResults() {
   try {
     const r = await fetch(`${SUPA_URL}/rest/v1/results?id=eq.main`, { headers: H });
@@ -138,7 +147,7 @@ const ADMIN_PASS = "borregos2026";
 const ALL_TEAMS  = Object.keys(TEAM_FLAGS);
 
 // ─── SCORE ────────────────────────────────────────────────────────────────────
-function calcScoreBreakdown(predictions, results) {
+function calcScoreBreakdown(predictions, results, bonus = 0) {
   let winPts = 0, timePts = 0;
   for (const { key } of ROUNDS) {
     const pRound = predictions[key] || {};
@@ -155,7 +164,7 @@ function calcScoreBreakdown(predictions, results) {
   }
   if (predictions.champion && results.champion && predictions.champion === results.champion)
     winPts += BASE_PTS.champion;
-  return { winPts, timePts, total: winPts + timePts };
+  return { winPts, timePts, bonus, total: winPts + timePts + bonus };
 }
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
@@ -240,7 +249,7 @@ export default function App() {
         {screen==="register"    && <RegisterScreen onRegister={handleRegister} setScreen={setScreen}/>}
         {screen==="play"        && <PlayScreen user={user} officialBracket={officialBracket} results={results} config={config} players={players} onSave={savePredictions}/>}
         {screen==="leaderboard" && <LeaderboardScreen players={players} results={results} config={config} user={user}/>}
-        {screen==="admin"       && <AdminScreen bracket={officialBracket} results={results} config={config} onSave={saveResults} onSaveConfig={saveConfig} showToast={showToast}/>}
+        {screen==="admin"       && <AdminScreen bracket={officialBracket} results={results} config={config} players={players} setPlayers={setPlayers} onSave={saveResults} onSaveConfig={saveConfig} showToast={showToast}/>}
       </main>
     </div>
   );
@@ -387,7 +396,7 @@ function PlayScreen({user,officialBracket,results,config,players,onSave}) {
     setDirty(true);
   }
 
-  const breakdown = calcScoreBreakdown(preds, results);
+  const breakdown = calcScoreBreakdown(preds, results, user?.bonus || 0);
 
   return (
     <div style={S.playWrap}>
@@ -401,7 +410,7 @@ function PlayScreen({user,officialBracket,results,config,players,onSave}) {
           <div style={S.scoreSub}>PTS</div>
           <div style={S.scoreDetail}>
             <span style={{color:"#60A5FA"}}>⚽ {breakdown.winPts}</span>{" + "}
-            <span style={{color:"#34D399"}}>⏱ {breakdown.timePts}</span>
+            <span style={{color:"#34D399"}}>⏱ {breakdown.timePts}</span>{breakdown.bonus > 0 && <span style={{color:"#E8C840"}}>{" + "}🎁 {breakdown.bonus}</span>}
           </div>
         </div>
       </div>
@@ -561,7 +570,7 @@ function TeamBtn({team,selected,disabled,correct,onClick}) {
 // ─── LEADERBOARD ──────────────────────────────────────────────────────────────
 function LeaderboardScreen({players,results,config,user}) {
   const ranked = Object.entries(players)
-    .map(([code,p])=>{ const bd=calcScoreBreakdown(p.predictions||{},results); return {code,name:p.name,predictions:p.predictions||{},...bd}; })
+    .map(([code,p])=>{ const bd=calcScoreBreakdown(p.predictions||{},results,p.bonus||0); return {code,name:p.name,predictions:p.predictions||{},bonus:p.bonus||0,...bd}; })
     .sort((a,b)=>b.total-a.total);
   const medals=["🥇","🥈","🥉"];
   return (
@@ -588,7 +597,7 @@ function LeaderboardScreen({players,results,config,user}) {
               <span style={S.lbTotal}>{p.total}</span>
               <span style={S.lbBreak}>
                 <span style={{color:"#60A5FA"}}>⚽{p.winPts}</span>{" "}
-                <span style={{color:"#34D399"}}>⏱{p.timePts}</span>
+                <span style={{color:"#34D399"}}>⏱{p.timePts}</span>{p.bonus > 0 && <span style={{color:"#E8C840"}}> 🎁{p.bonus}</span>}
               </span>
             </div>
           </div>
@@ -599,13 +608,14 @@ function LeaderboardScreen({players,results,config,user}) {
 }
 
 // ─── ADMIN ────────────────────────────────────────────────────────────────────
-function AdminScreen({bracket,results,config,onSave,onSaveConfig,showToast}) {
+function AdminScreen({bracket,results,config,players,setPlayers,onSave,onSaveConfig,showToast}) {
   const [pass,setPass]                 = useState("");
   const [auth,setAuth]                 = useState(false);
   const [localRes,setLocalRes]         = useState(()=>JSON.parse(JSON.stringify(results)));
   const [localBracket,setLocalBracket] = useState(()=>JSON.parse(JSON.stringify(bracket)));
   const [localConfig,setLocalConfig]   = useState(()=>JSON.parse(JSON.stringify(config)));
   const [activeTab,setActiveTab]       = useState("results");
+  const [bonusEdits,setBonusEdits]     = useState({});
   const [activeRound,setActiveRound]   = useState("r16");
 
   useEffect(()=>{
@@ -675,6 +685,9 @@ function AdminScreen({bracket,results,config,onSave,onSaveConfig,showToast}) {
         <button style={{...S.tab,...(activeTab==="locks"?S.tabOn:{})}} onClick={()=>setActiveTab("locks")}>
           <span style={S.tabLabel}>🔒 BLOQUEOS</span>
         </button>
+        <button style={{...S.tab,...(activeTab==="bonus"?S.tabOn:{})}} onClick={()=>setActiveTab("bonus")}>
+          <span style={S.tabLabel}>🎁 BONUS</span>
+        </button>
       </div>
 
       {/* ── BLOQUEOS TAB ── */}
@@ -732,6 +745,17 @@ function AdminScreen({bracket,results,config,onSave,onSaveConfig,showToast}) {
         </div>
       )}
 
+
+      {/* ── BONUS TAB ── */}
+      {activeTab==="bonus" && (
+        <BonusPanel players={players} bonusEdits={bonusEdits} setBonusEdits={setBonusEdits}
+          onSave={async (code, val) => {
+            await sbSaveBonus(code, val);
+            const updated = {...players, [code]: {...players[code], bonus: val}};
+            setPlayers(updated);
+            showToast(`Bonus actualizado para ${code} ✅`);
+          }}/>
+      )}
       {/* ── RESULTADOS TAB ── */}
       {activeTab==="results" && (
         <>
@@ -816,6 +840,50 @@ function AdminScreen({bracket,results,config,onSave,onSaveConfig,showToast}) {
             GUARDAR RESULTADOS 💾
           </button>
         </>
+      )}
+    </div>
+  );
+}
+
+
+// ─── BONUS PANEL ──────────────────────────────────────────────────────────────
+function BonusPanel({players, bonusEdits, setBonusEdits, onSave}) {
+  return (
+    <div style={S.bonusPanel}>
+      <p style={S.bonusPanelNote}>
+        Agrega puntos bonus manualmente a cualquier participante. Se suman al total en la tabla.
+      </p>
+      {Object.entries(players).map(([code, p]) => {
+        const current = p.bonus || 0;
+        const edit = bonusEdits[code] ?? current;
+        return (
+          <div key={code} style={S.bonusRow}>
+            <div style={S.bonusInfo}>
+              <span style={S.bonusCode}>{code}</span>
+              <span style={S.bonusName}>{p.name}</span>
+              {current > 0 && <span style={S.bonusCurrent}>🎁 {current} pts actuales</span>}
+            </div>
+            <div style={S.bonusControls}>
+              <button style={S.bonusMinus}
+                onClick={() => setBonusEdits(b => ({...b, [code]: Math.max(0, (b[code] ?? current) - 1)}))}>
+                −
+              </button>
+              <span style={S.bonusVal}>{edit}</span>
+              <button style={S.bonusPlus}
+                onClick={() => setBonusEdits(b => ({...b, [code]: (b[code] ?? current) + 1}))}>
+                +
+              </button>
+              <button style={{...S.btnSaveBonus,...(edit === current ? S.btnSaveBonusDisabled : {})}}
+                disabled={edit === current}
+                onClick={() => onSave(code, edit)}>
+                GUARDAR
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      {Object.keys(players).length === 0 && (
+        <p style={{color:"#475569",textAlign:"center",fontFamily:FONT_COND,fontSize:14}}>No hay participantes registrados.</p>
       )}
     </div>
   );
@@ -998,5 +1066,19 @@ const S = {
   lockBtn:{ background:"#0D1F35",border:"1px solid #1E3A5F",borderRadius:6,padding:"8px 14px",cursor:"pointer",fontFamily:FONT_COND,fontWeight:700,fontSize:12,color:"#64748B",letterSpacing:1,flexShrink:0,whiteSpace:"nowrap" },
   lockBtnOn:{ background:"#1A0808",border:"1px solid #EF4444",color:"#FCA5A5" },
   toast:{ position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"#0D2137",border:"1px solid #3B82F6",borderRadius:8,padding:"12px 24px",fontFamily:FONT_COND,fontSize:14,fontWeight:700,letterSpacing:1,color:"#E2E8F0",zIndex:999,whiteSpace:"nowrap",boxShadow:"0 8px 32px rgba(0,0,0,0.6)" },
+
+  bonusPanel:{ display:"flex",flexDirection:"column",gap:10 },
+  bonusPanelNote:{ fontSize:12,color:"#64748B",margin:"0 0 4px",lineHeight:1.6 },
+  bonusRow:{ display:"flex",alignItems:"center",justifyContent:"space-between",background:"#0A1628",border:"1px solid #1E3A5F",borderRadius:10,padding:"10px 14px",gap:12,flexWrap:"wrap" },
+  bonusInfo:{ display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0 },
+  bonusCode:{ fontFamily:FONT_COND,fontWeight:800,fontSize:13,color:"#E8C840",letterSpacing:2,flexShrink:0 },
+  bonusName:{ fontSize:12,color:"#94A3B8",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" },
+  bonusCurrent:{ fontFamily:FONT_COND,fontSize:11,color:"#E8C840",flexShrink:0 },
+  bonusControls:{ display:"flex",alignItems:"center",gap:6,flexShrink:0 },
+  bonusMinus:{ background:"#1A0808",border:"1px solid #7F1D1D",color:"#FCA5A5",width:30,height:30,borderRadius:6,cursor:"pointer",fontFamily:FONT_COND,fontWeight:900,fontSize:18,display:"flex",alignItems:"center",justifyContent:"center" },
+  bonusPlus:{ background:"#0A2008",border:"1px solid #22C55E",color:"#86EFAC",width:30,height:30,borderRadius:6,cursor:"pointer",fontFamily:FONT_COND,fontWeight:900,fontSize:18,display:"flex",alignItems:"center",justifyContent:"center" },
+  bonusVal:{ fontFamily:FONT_COND,fontWeight:900,fontSize:22,color:"#FFFFFF",minWidth:32,textAlign:"center" },
+  btnSaveBonus:{ background:"#E8C840",color:"#040D18",border:"none",borderRadius:6,padding:"6px 12px",cursor:"pointer",fontFamily:FONT_COND,fontWeight:800,fontSize:11,letterSpacing:1 },
+  btnSaveBonusDisabled:{ background:"#1E3A5F",color:"#475569",cursor:"default" },
   toastErr:{ background:"#1A0808",borderColor:"#EF4444",color:"#FCA5A5" },
 };
