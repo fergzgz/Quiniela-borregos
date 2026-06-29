@@ -179,14 +179,18 @@ export default function App() {
   const [toast,   setToast]                   = useState(null);
 
   useEffect(() => {
-    (async () => {
+    async function refresh(initial = false) {
       const [p, r, ob, cfg] = await Promise.all([sbGetPlayers(), sbGetResults(), sbGetBracket(), sbGetConfig()]);
       if (p) setPlayers(p);
       if (r) setResults(r);
       if (ob && ob.r16) setOfficialBracket(ob);
       if (cfg) setConfig(cfg);
-      setLoading(false);
-    })();
+      if (initial) setLoading(false);
+    }
+    refresh(true);
+    // Auto-refresh every 30 seconds so results and locks update for all users
+    const interval = setInterval(() => refresh(false), 30000);
+    return () => clearInterval(interval);
   }, []);
 
   function showToast(msg, type="ok") { setToast({msg,type}); setTimeout(()=>setToast(null),2800); }
