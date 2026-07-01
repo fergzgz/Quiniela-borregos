@@ -625,11 +625,13 @@ function AdminScreen({bracket,results,config,players,setPlayers,onSave,onSaveCon
   const [bonusEdits,setBonusEdits]     = useState({});
   const [activeRound,setActiveRound]   = useState("r16");
 
+  // Only sync on first mount — not on every parent refresh
+  // so admin edits don't get wiped by the 15s auto-refresh
   useEffect(()=>{
     setLocalRes(JSON.parse(JSON.stringify(results)));
     setLocalBracket(JSON.parse(JSON.stringify(bracket)));
     setLocalConfig(JSON.parse(JSON.stringify(config)));
-  },[results,bracket,config]);
+  },[]);
 
   function login(){ if(pass===ADMIN_PASS) setAuth(true); else showToast("Contraseña incorrecta","err"); }
 
