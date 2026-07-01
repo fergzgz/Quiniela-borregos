@@ -101,21 +101,21 @@ function Flag({ team, size=32 }) {
 // ─── BRACKET DATA ─────────────────────────────────────────────────────────────
 const INITIAL_BRACKET = {
   r16: [
-    { id:"r16_0",  team1:"Sudáfrica",      team2:"Canadá",       date:"Dom 28 Jun", time:"13:00", venue:"Los Ángeles" },
-    { id:"r16_1",  team1:"Brasil",         team2:"Japón",        date:"Lun 29 Jun", time:"11:00", venue:"Houston" },
-    { id:"r16_2",  team1:"Alemania",       team2:"Paraguay",     date:"Lun 29 Jun", time:"14:30", venue:"Boston" },
+    { id:"r16_0",  team1:"Alemania",       team2:"Paraguay",     date:"Lun 29 Jun", time:"14:30", venue:"Boston" },
+    { id:"r16_1",  team1:"Francia",        team2:"Suecia",       date:"Mar 30 Jun", time:"15:00", venue:"Nueva York/NJ" },
+    { id:"r16_2",  team1:"Sudáfrica",      team2:"Canadá",       date:"Dom 28 Jun", time:"13:00", venue:"Los Ángeles" },
     { id:"r16_3",  team1:"Países Bajos",   team2:"Marruecos",    date:"Lun 29 Jun", time:"19:00", venue:"Monterrey" },
-    { id:"r16_4",  team1:"Costa de Marfil",team2:"Noruega",      date:"Mar 30 Jun", time:"11:00", venue:"Dallas" },
-    { id:"r16_5",  team1:"Francia",        team2:"Suecia",       date:"Mar 30 Jun", time:"15:00", venue:"Nueva York/NJ" },
-    { id:"r16_6",  team1:"México",         team2:"Ecuador",      date:"Mar 30 Jun", time:"19:00", venue:"Ciudad de México" },
-    { id:"r16_7",  team1:"Inglaterra",     team2:"Congo",        date:"Mié 1 Jul",  time:"10:00", venue:"Atlanta" },
-    { id:"r16_8",  team1:"Bélgica",        team2:"Senegal",      date:"Mié 1 Jul",  time:"14:00", venue:"Seattle" },
-    { id:"r16_9",  team1:"EUA",            team2:"Bosnia",       date:"Mié 1 Jul",  time:"18:00", venue:"San Francisco" },
-    { id:"r16_10", team1:"España",         team2:"Austria",      date:"Jue 2 Jul",  time:"13:00", venue:"Los Ángeles" },
-    { id:"r16_11", team1:"Portugal",       team2:"Croacia",      date:"Jue 2 Jul",  time:"17:00", venue:"Toronto" },
-    { id:"r16_12", team1:"Suiza",          team2:"Argelia",      date:"Jue 2 Jul",  time:"21:00", venue:"Vancouver" },
+    { id:"r16_4",  team1:"Portugal",       team2:"Croacia",      date:"Jue 2 Jul",  time:"17:00", venue:"Toronto" },
+    { id:"r16_5",  team1:"España",         team2:"Austria",      date:"Jue 2 Jul",  time:"13:00", venue:"Los Ángeles" },
+    { id:"r16_6",  team1:"EUA",            team2:"Bosnia",       date:"Mié 1 Jul",  time:"18:00", venue:"San Francisco" },
+    { id:"r16_7",  team1:"Bélgica",        team2:"Senegal",      date:"Mié 1 Jul",  time:"14:00", venue:"Seattle" },
+    { id:"r16_8",  team1:"Brasil",         team2:"Japón",        date:"Lun 29 Jun", time:"11:00", venue:"Houston" },
+    { id:"r16_9",  team1:"Costa de Marfil",team2:"Noruega",      date:"Mar 30 Jun", time:"11:00", venue:"Dallas" },
+    { id:"r16_10", team1:"México",         team2:"Ecuador",      date:"Mar 30 Jun", time:"19:00", venue:"Ciudad de México" },
+    { id:"r16_11", team1:"Inglaterra",     team2:"Congo",        date:"Mié 1 Jul",  time:"10:00", venue:"Atlanta" },
+    { id:"r16_12", team1:"Argentina",      team2:"Cabo Verde",   date:"Vie 3 Jul",  time:"16:00", venue:"Miami" },
     { id:"r16_13", team1:"Australia",      team2:"Egipto",       date:"Vie 3 Jul",  time:"12:00", venue:"Dallas" },
-    { id:"r16_14", team1:"Argentina",      team2:"Cabo Verde",   date:"Vie 3 Jul",  time:"16:00", venue:"Miami" },
+    { id:"r16_14", team1:"Suiza",          team2:"Argelia",      date:"Jue 2 Jul",  time:"21:00", venue:"Vancouver" },
     { id:"r16_15", team1:"Colombia",       team2:"Ghana",        date:"Vie 3 Jul",  time:"19:30", venue:"Kansas City" },
   ],
   r8:    Array.from({length:8}, (_,i) => ({ id:`r8_${i}`,    team1:null, team2:null, date:"", time:"", venue:"" })),
@@ -188,8 +188,8 @@ export default function App() {
       if (initial) setLoading(false);
     }
     refresh(true);
-    // Auto-refresh every 30 seconds so results and locks update for all users
-    const interval = setInterval(() => refresh(false), 30000);
+    // Auto-refresh every 15 seconds so picks, results and locks update for all users in real time
+    const interval = setInterval(() => refresh(false), 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -386,7 +386,10 @@ function PlayScreen({user,officialBracket,results,config,players,onSave}) {
 
   function pickWinner(roundKey,matchId,winner) {
     if (config.lockedMatches?.[matchId]) return;
-    setPreds(p=>({...p,[roundKey]:{...(p[roundKey]||{}),[matchId]:{...(p[roundKey]?.[matchId]||{}),winner}}}));
+    setPreds(p=>{
+      const existing = p[roundKey]?.[matchId] || {};
+      return {...p,[roundKey]:{...(p[roundKey]||{}),[matchId]:{...existing,winner}}};
+    });
     setDirty(true);
   }
   function pickTime(roundKey,matchId,time) {
@@ -490,7 +493,7 @@ function PlayScreen({user,officialBracket,results,config,players,onSave}) {
               </div>
 
               {/* Time pick */}
-              {(pData.winner||hasResult) && (
+              {(pData.winner||hasResult||locked) && (
                 <div style={S.timeRow}>
                   <span style={S.timeLabel}>¿Cómo gana?</span>
                   <div style={S.timeBtns}>
